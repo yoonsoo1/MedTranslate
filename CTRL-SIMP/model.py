@@ -9,12 +9,20 @@ from transformers import T5Tokenizer, T5ForConditionalGeneration
 import numpy as np
 import itertools
     
-def load_model(model_name_or_path, tokenizer_path, cuda_devices=None):
+def load_model(model_name_or_path, tokenizer_path, cuda_devices=None, checkpoint=None):
   #suppose there are 13 layers
   #one_extra makes sure that the last layer gets added to the last gpu
   cuda_devices = cuda_devices or []
-  tokenizer = T5Tokenizer.from_pretrained(tokenizer_path)
-  model = T5ForConditionalGeneration.from_pretrained(model_name_or_path)
+
+  if model_name_or_path == "t5-large":
+    if checkpoint is None:
+      tokenizer = T5Tokenizer.from_pretrained(tokenizer_path)
+      model = T5ForConditionalGeneration.from_pretrained(model_name_or_path)
+    else:
+      tokenizer = T5Tokenizer.from_pretrained(tokenizer_path)
+      model_dict = torch.load(checkpoint)
+      model = T5ForConditionalGeneration.from_pretrained(model_name_or_path, state_dict=model_dict['model_state_dict'])
+
   device_map = None
   if len(cuda_devices) > 1:
     num_layers = model.config.num_layers
@@ -35,6 +43,7 @@ def load_model(model_name_or_path, tokenizer_path, cuda_devices=None):
   else:
     device = "cpu"
 
+  print("Running on device: ", device)
   if device_map is not None:
     model.parallelize(device_map)
   else:
@@ -49,7 +58,7 @@ def run_model(model, tokenizer, cuda_device, input_string, generator_options):
     res = model.generate(input_ids, **generator_options)
     output_strings = tokenizer.batch_decode(res, skip_special_tokens = True)
     res = {"input_raw": input_string, "output_raw_list": output_strings}
-    print("generated texts: ", res)
+    # print("generated texts: ", res)
 
   return res
 
@@ -194,7 +203,7 @@ def batch_generator(textpairs, slots, all_annotation, batch_size=16, shuffle = T
       print("Running only Ea->Sa --------\n")
       inputs, outputs = get_inplace_annotated_data(all_annotation[i], slots[i])
     else:
-      print("Running all slots --------\n")
+      # print("Running all slots --------\n")
       inputs, outputs = get_training_data(all_annotation[i], slots[i], in_place_annotation = in_place_annotation) 
     
     for input, output in zip(inputs, outputs):
@@ -226,7 +235,7 @@ def get_eval_data(textpairs, slots, all_annotation, shuffle = False, in_place_an
       print("Running only Ea->Sa --------\n")
       inputs, outputs = get_inplace_annotated_data(all_annotation[i], slots[i])
     else:
-      print("Running all slots --------\n")
+      # print("Running all slots --------\n")
       inputs, outputs = get_training_data(all_annotation[i], slots[i], in_place_annotation = in_place_annotation) 
     #option 1: treating every example equally - keep a max combination, repeat example that do not have enough combination
     #higher weight to harder example, each batch should be diverse (cos similarity)

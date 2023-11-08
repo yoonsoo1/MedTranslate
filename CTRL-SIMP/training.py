@@ -12,9 +12,23 @@ import numpy as np
 from utils import GENERATOR_OPTIONS_DEFAULT
 import textwrap
 import argparse
+from tqdm import tqdm
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--shuffle', type = bool, default = True)
+parser.add_argument('--ip_ann', type = bool, default = False)
+parser.add_argument('--one_slot', type = bool, default = False)
+parser.add_argument('--merged_output', type = bool, default = True)
+parser.add_argument('--multi_angle', type = bool, default = True)
+parser.add_argument('-cp', '--check_pt', type=str, default = None, action='store')
+args = parser.parse_args()
 
 MODEL_SAVE_PATH = 'saved_models/t5-large'
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if device.type == "cuda":
+    device_list = list(range(torch.cuda.device_count()))
+else:
+    device_list = None
 
 tags = {'E->S': 1., 'Ea->Sa': 1., 'E->Sa': 1.}
 
@@ -42,13 +56,13 @@ def print_text(string, text_type = 'Input'):
 def train_model_with_outputs(model, tokenizer, cuda_device, training_pairs, eval_pairs, shuffle = True, in_place_annotation = True, one_slot = False, data_dir = None, num_epochs=20):
     optimizer = torch.optim.AdamW(model.parameters(), lr=8e-6)
     # overall_loss = torch.tensor(0.0, requires_grad=True).to(cuda_device)
-    for epoch in range(num_epochs):
+    for epoch in tqdm(range(num_epochs), desc="Training with outputs"):
         epoch_loss = []
         gen = batch_generator(training_pairs, slots_train, all_annotations_train, batch_size = 16, shuffle = shuffle, in_place_annotation = in_place_annotation, one_slot = one_slot)
         data_per_batch = defaultdict(dict)
         with torch.autograd.set_detect_anomaly(True):
             for i, batch in enumerate(gen):
-                print('batch # {} \n'.format(i))
+                # print('batch # {} \n'.format(i))
                 optimizer.zero_grad() #added here
                 overall_loss = 0.
                 data_per_batch[i]['res_per_example'] = []
@@ -60,15 +74,15 @@ def train_model_with_outputs(model, tokenizer, cuda_device, training_pairs, eval
                     else:
                         loss_multiplier = 1
                     #print_text(input_string)
-                    print('\n\n\t angle for this example: ', angle)
+                    # print('\n\n\t angle for this example: ', angle)
                     input_ids = tokenizer.encode(input_string, return_tensors="pt").to(cuda_device)
 
                     outputs = []
                     for k, (output_string, output_text) in enumerate(output_strings):
                         output_ids = tokenizer.encode(output_string, return_tensors="pt").to(cuda_device)
                         output_ids[output_ids[:] == tokenizer.pad_token_id] = -100
-                        print_text(input_string)
-                        print_text(output_string, text_type='Output')
+                        # print_text(input_string)
+                        # print_text(output_string, text_type='Output')
                         res = model(input_ids, labels=output_ids, return_dict=True)
                         res_softmax = torch.softmax(res.logits[0], dim=1)
                         raw_probs = [x[y.item()].item() for x,y in list(zip(res_softmax, output_ids[0]))]
@@ -77,7 +91,7 @@ def train_model_with_outputs(model, tokenizer, cuda_device, training_pairs, eval
                             output_prob *= raw_prob
                         # overall_loss += res.loss
                         #print_text(output_string, text_type='Output')
-                        print('\n\t\t\t loss for output string {}: {}'.format(k, res.loss.item()))
+                        # print('\n\t\t\t loss for output string {}: {}'.format(k, res.loss.item()))
                         
                         loss = res.loss / len(output_strings) / len(batch)
                         loss *= loss_multiplier
@@ -94,19 +108,19 @@ def train_model_with_outputs(model, tokenizer, cuda_device, training_pairs, eval
                         outputs.append(out)
                     data_per_batch[i]['res_per_example'].append({'outputs': outputs, 'input_string': input_string, 'angle': angle})
                 data_per_batch[i]['loss_per_batch'] = overall_loss 
-                print('\nloss per batch: {}'.format(overall_loss))
-                print('\n\n=======================================')
+                # print('\nloss per batch: {}'.format(overall_loss))
+                # print('\n\n=======================================')
                 optimizer.step()
                 epoch_loss += [overall_loss]
         average_loss = sum(epoch_loss)/len(epoch_loss)
-        print('average loss for epoch # {}: {}'.format(epoch, average_loss))
+        # print('average loss for epoch # {}: {}'.format(epoch, average_loss))
 
         eval_res = []
         eval_loss = 0.
         eval_data = get_eval_data(eval_pairs, slots_eval, all_annotations_eval)
         for input, outputs in eval_data:
-            print("\n\n-------------new example------------------")
-            print("raw inputs: ", input, '\n')
+            # print("\n\n-------------new example------------------")
+            # print("raw inputs: ", input, '\n')
             res = run_macaw(input, outputs, model_dict=model_dict)
             eval_res.append(res)
             eval_loss += sum([x['loss'] for x in res['explicit_outputs']])/len(res['explicit_outputs'])
@@ -132,34 +146,31 @@ def train_model_with_outputs(model, tokenizer, cuda_device, training_pairs, eval
 def test_merged_outputs(training_pairs, shuffle = True, in_place_annotation = False, one_slot = False):
     gen = batch_generator(training_pairs, slots_train, all_annotations_train, batch_size = 16, shuffle = shuffle, in_place_annotation = in_place_annotation, one_slot = one_slot)
     for i, batch in enumerate(gen):
-        print('batch # {} \n'.format(i))
+        # print('batch # {} \n'.format(i))
         for input, output in batch:
             state_dict = get_state_dict(input, output)
             input_string, output_strings, angle = model_input_format(state_dict)
-            print('\n\n\t angle for this example: ', angle)
+            # print('\n\n\t angle for this example: ', angle)
             output_string = [string for string, _ in output_strings]
             output_text = [text for _, text in output_strings]
             if len(output_strings) > 1:
                 output_string = ' ; '.join(output_string)
             else:
                 output_string = output_string[0]
-            print_text(input_string)
-            print_text(output_string, text_type='Output')
-            #print(output_text)
-            
-        
-        
+            # print_text(input_string)
+            # print_text(output_string, text_type='Output')
+            #print(output_text)      
         
 def train_model_with_merged_outputs(model, tokenizer, cuda_device, training_pairs, dev_pairs, shuffle = True, in_place_annotation = False, one_slot = False, data_dir = None, num_epochs=5):
     print("Running model with merged inputs")
     optimizer = torch.optim.AdamW(model.parameters(), lr=8e-6)
-    for epoch in range(num_epochs):
+    for epoch in tqdm(range(num_epochs), desc="Training with merged outputs"):
         epoch_loss = []
         gen = batch_generator(training_pairs, slots_train, all_annotations_train, batch_size = 4, shuffle = shuffle, in_place_annotation = in_place_annotation, one_slot = one_slot)
         data_per_batch = defaultdict(dict)
         with torch.autograd.set_detect_anomaly(True):
             for i, batch in enumerate(gen):
-                print('batch # {} \n'.format(i))
+                # print('batch # {} \n'.format(i))
                 optimizer.zero_grad() #added here
                 overall_loss = 0.
                 data_per_batch[i]['res_per_example'] = []
@@ -170,7 +181,7 @@ def train_model_with_merged_outputs(model, tokenizer, cuda_device, training_pair
                         loss_multiplier = tags[angle]
                     else:
                         loss_multiplier = 1
-                    print('\n\n\t angle for this example: ', angle)
+                    # print('\n\n\t angle for this example: ', angle)
                     input_ids = tokenizer.encode(input_string, return_tensors="pt").to(cuda_device)
                     output_string = [string for string, _ in output_strings]
                     output_text = [text for _, text in output_strings]
@@ -180,15 +191,15 @@ def train_model_with_merged_outputs(model, tokenizer, cuda_device, training_pair
                         output_string = output_string[0]
                     output_ids = tokenizer.encode(output_string, return_tensors="pt").to(cuda_device)
                     output_ids[output_ids[:] == tokenizer.pad_token_id] = -100
-                    print_text(input_string)
-                    print_text(output_string, text_type='Output')
+                    # print_text(input_string)
+                    # print_text(output_string, text_type='Output')
                     res = model(input_ids, labels=output_ids, return_dict=True)
                     res_softmax = torch.softmax(res.logits[0], dim=1)
                     raw_probs = [x[y.item()].item() for x,y in list(zip(res_softmax, output_ids[0]))]
                     output_prob = 1
                     for raw_prob in raw_probs:
                         output_prob *= raw_prob
-                    print('\n\t\t loss for output string : {}'.format(res.loss.item()))
+                    # print('\n\t\t loss for output string : {}'.format(res.loss.item()))
                         
                     loss = res.loss / len(batch)
                     loss *= loss_multiplier
@@ -204,8 +215,8 @@ def train_model_with_merged_outputs(model, tokenizer, cuda_device, training_pair
                     overall_loss += loss.item()
                     data_per_batch[i]['res_per_example'].append({'outputs': out, 'input_string': input_string, 'angle': angle})
                 data_per_batch[i]['loss_per_batch'] = overall_loss 
-                print('\nloss per batch: {}'.format(overall_loss))
-                print('\n\n=======================================')
+                # print('\nloss per batch: {}'.format(overall_loss))
+                # print('\n\n=======================================')
                 optimizer.step()
                 epoch_loss += [overall_loss]
         average_loss = sum(epoch_loss)/len(epoch_loss)
@@ -227,10 +238,10 @@ def train_model_with_merged_outputs(model, tokenizer, cuda_device, training_pair
            pickle.dump(data_per_batch, f)
         
         
-        PATH = MODEL_SAVE_PATH+str(epoch)+'.pt'
+        PATH = MODEL_SAVE_PATH+str(epoch+15)+'.pt'
 
         torch.save({
-            'epoch': epoch,
+            'epoch': epoch+15,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': average_loss,
@@ -269,18 +280,11 @@ if __name__ == '__main__':
         one_slot - corresponds to only one angle Ea - > Sa, default: False
         merged_output - slots are all concatenated both in model input and output, default: True
     """
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--shuffle', type = bool, default = True)
-    parser.add_argument('--ip_ann', type = bool, default = False)
-    parser.add_argument('--one_slot', type = bool, default = False)
-    parser.add_argument('--merged_output', type = bool, default = True)
-    parser.add_argument('--multi_angle', type = bool, default = True)
-    args = parser.parse_args()
     
     if args.multi_angle:
         train_file = pd.read_csv(datapath + "processed_train_data.csv")
         training_data = [[x,y,z] for x,y,z in zip(train_file['Expert'], train_file['Simple'], train_file['Annotation'])]
-        with open('./Datasets/annotated_data/train_annotations_slots.json', 'r') as f:
+        with open(datapath + 'train_annotations_slots.json', 'r') as f:
             train_dict = json.load(f)
         all_annotations_train = train_dict['annotations']
         slots_train = train_dict['slots']
@@ -288,13 +292,11 @@ if __name__ == '__main__':
         
         dev_file = pd.read_csv(datapath + "processed_dev_data.csv")
         dev_data = [[x,y,z] for x,y,z in zip(dev_file['Expert'], dev_file['Simple'], dev_file['Annotation'])]
-        with open('./Datasets/annotated_data/dev_annotations_slots.json', 'r') as f:
+        with open(datapath + 'dev_annotations_slots.json', 'r') as f:
             dev_dict = json.load(f)
         all_annotations_dev = dev_dict['annotations']
         slots_dev = dev_dict['slots']
-        slots_dev = {int(k):v for k, v in slots_dev.items()}
-        
-        
+        slots_dev = {int(k):v for k, v in slots_dev.items()}        
              
     else:
         train_file = pd.read_csv(datapath + "processed_train_data.csv", encoding='unicode_escape',engine='python')
@@ -309,8 +311,10 @@ if __name__ == '__main__':
         dev_file = dev_file.drop_duplicates( subset = ['Expert', 'Simple'], keep = 'last').reset_index(drop = True)
         dev_data = [[x,y,z] for x,y,z in zip(dev_file['Expert'], dev_file['Simple'], dev_file['Annotation'])]
         dev_data, all_inputs_dev, all_outputs_dev, all_annotations_dev, slots_dev = load_data(dev_data, eval=True, single_angle=True)
-        #angle_counter_eval, all_annotations_eval, altered_slots_eval = get_multiangle_data(slots_eval, all_annotations_eval)
-        #all_inputs_eval, all_outputs_eval, all_annotations_eval, slots_eval = post_processing_single_angle(all_inputs_eval, all_outputs_eval, all_annotations_eval, slots_eval, simplify=False)
+
+        eval_data, all_inputs_eval, all_outputs_eval, all_annotations_eval, slots_eval = load_data(dev_data, eval=True, single_angle=True)
+        angle_counter_eval, all_annotations_eval, altered_slots_eval = get_multiangle_data(slots_eval, all_annotations_eval)
+        all_inputs_eval, all_outputs_eval, all_annotations_eval, slots_eval = post_processing_single_angle(all_inputs_eval, all_outputs_eval, all_annotations_eval, slots_eval, simplify=False)
         #print_data(all_inputs_eval, all_outputs_eval, all_annotations_eval, slots_eval)
 
     print("There are {} training text pairs".format(len(training_data)))
@@ -318,13 +322,17 @@ if __name__ == '__main__':
     
     # DEFAULT_RESULTS_DIR = './results/t5_small/merged_outputs/exc_EaSa_alt_input_format'
     DEFAULT_RESULTS_DIR = 'results/t5_large'
-    model_dict = load_model(model_name_or_path="t5-large", tokenizer_path="t5-large", cuda_devices = device)
+    if args.check_pt:
+        model_dict = load_model(model_name_or_path="t5-large", tokenizer_path="t5-large", cuda_devices = device_list, checkpoint=args.check_pt)
+    else:
+        model_dict = load_model(model_name_or_path="t5-large", tokenizer_path="t5-large", cuda_devices = device_list)
+    num_epochs = 14
 
     #test_merged_outputs(training_data)    
     
     if args.merged_output:
-        train_model_with_merged_outputs(model_dict['model'], model_dict['tokenizer'], model_dict['cuda_device'], training_data, dev_data, shuffle = args.shuffle, in_place_annotation = args.ip_ann, one_slot = args.one_slot, data_dir = DEFAULT_RESULTS_DIR)
+        train_model_with_merged_outputs(model_dict['model'], model_dict['tokenizer'], model_dict['cuda_device'], training_data, dev_data, shuffle = args.shuffle, in_place_annotation = args.ip_ann, one_slot = args.one_slot, data_dir = DEFAULT_RESULTS_DIR, num_epochs=num_epochs)
     else:
-        train_model_with_outputs(model_dict['model'], model_dict['tokenizer'], model_dict['cuda_device'], training_data, dev_data, shuffle = args.shuffle, in_place_annotation = args.ip_ann, one_slot = args.one_slot, data_dir = DEFAULT_RESULTS_DIR)
+        train_model_with_outputs(model_dict['model'], model_dict['tokenizer'], model_dict['cuda_device'], training_data, dev_data, shuffle = args.shuffle, in_place_annotation = args.ip_ann, one_slot = args.one_slot, data_dir = DEFAULT_RESULTS_DIR, num_epochs=num_epochs)
     
 

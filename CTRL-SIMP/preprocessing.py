@@ -593,8 +593,8 @@ def prep_final_slots_per_datapoint(textpairs, sampling = False):
 def get_training_data(annotation_dict, slot, in_place_annotation = True):
   inputs = []
   outputs = []
-  print(annotation_dict)
-  print(slot)
+  # print(annotation_dict)
+  # print(slot)
   for inp, out in slot:
     if not in_place_annotation:
       if 'Ea' in inp:
@@ -626,8 +626,8 @@ def get_training_data(annotation_dict, slot, in_place_annotation = True):
             text = " | ".join([str(x) for x in annotation_dict[output_slot]])
             text = '[' + text + ']'
             output_strings.append(output_slot + ':' + text)
-      print(input_string)
-      print(output_strings)
+      # print(input_string)
+      # print(output_strings)
       inputs.append(input_string)
       outputs.append(output_strings)
 
@@ -818,7 +818,12 @@ if __name__ == '__main__':
     # read the annotated data
     # remove the duplicated entries
     #take fraction of text data for testing
-    crowdsourced_data = pd.read_csv("./Datasets/annotated_data/eval_data.csv", encoding='unicode_escape', engine='python')
+
+    train_csv = 'datasets/Med-EASi/train.csv'
+    eval_csv = 'datasets/Med-EASi/validation.csv'
+    test_csv = 'datasets/Med-EASi/test.csv'
+
+    crowdsourced_data = pd.read_csv(test_csv, encoding='unicode_escape', engine='python')
     crowdsourced_data = crowdsourced_data.drop_duplicates( subset = ['Expert', 'Simple'], keep = 'last').reset_index(drop = True)
     textpairs = [[x,y,z] for x,y,z in zip(crowdsourced_data['Expert'], crowdsourced_data['Simple'], crowdsourced_data['Annotation'])]
     #textpairs = textpairs[:2]
@@ -828,7 +833,7 @@ if __name__ == '__main__':
     angle_counter, all_annotations, altered_slots = get_multiangle_data(slots, all_annotations)
     #print(altered_slots)
 
-    print('There are {} eval data'.format(len(textpairs)))
+    print('There are {} data'.format(len(textpairs)))
     print(angle_counter)
     
     '''
@@ -841,9 +846,9 @@ if __name__ == '__main__':
       print(outputs, '\n')
     '''
   
-    crowdsourced_data.to_csv('processed_eval_data.csv', index = False)
+    crowdsourced_data.to_csv('datasets/Med-EASi/processed_test_data.csv', index = False)
     
-    with open('eval_annotations_slots.json', 'w') as f:
+    with open('datasets/Med-EASi/test_annotations_slots.json', 'w') as f:
       json.dump({'angle_counter': angle_counter, 'annotations': all_annotations, 'slots': altered_slots}, f)
       
         
