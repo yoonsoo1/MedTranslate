@@ -136,13 +136,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--chkpt', type = int, default = 1)
     args = parser.parse_args()
-    model_path = './models/merged_outputs/exc_EaSa_alt_input_format/model_' + str(args.chkpt) + '.hf'
+    model_path = 'google/flan-t5-base'
     tokenizer_path = 't5-small'
     model_dict = load_model(model_name_or_path=model_path, tokenizer_path = tokenizer_path, cuda_devices = [0])
     
-    crowdsourced_data = pd.read_csv("./Datasets/annotated_data/annotated_data_v2.csv")
+    crowdsourced_data = pd.read_csv("../datasets/Med-EASi/processed_test_data.csv")
     crowdsourced_data = crowdsourced_data.drop_duplicates( subset = ['Expert', 'Simple'], keep = 'last').reset_index(drop = True)
-    textpairs = [[x,y] for x,y in zip(crowdsourced_data['Expert'], crowdsourced_data['Annotation'])]
+    textpairs = [[x,y,z] for x,y,z in zip(crowdsourced_data['Expert'], crowdsourced_data['Simple'], crowdsourced_data['Annotation'])]
     
     eval_data = textpairs[-31:]
     print("There are {} eval text pairs".format(len(eval_data)))
@@ -151,10 +151,6 @@ if __name__ == '__main__':
     eval_data = get_eval_data(eval_pairs, slots_eval, all_annotations_eval, in_place_annotation=False)
     batch_instances = batch_for_conditional_gen_merged_outputs(eval_data)
     all_res = run_batch_generation(model_dict['model'], model_dict['tokenizer'], model_dict['cuda_device'],GENERATOR_OPTIONS_DEFAULT, batch_instances)
-    
-    #testing_run_macaw(eval_data)
-    #batch_instances = create_batch_for_generation(eval_data)
-    #eval = run_evaluation(eval_pairs, slots_eval, all_annotations_eval, model_dict)
     
     outputs = []
     true_outputs = []
@@ -165,6 +161,8 @@ if __name__ == '__main__':
     ratio_metrics_diff = []
     diff_raw_exp = []
     ratio_raw_exp = []
+
+    num_successes, num_tries = 0, 0
     for res in all_res:
         print('\n\n')
         print(len(res['true_output_text']), len(res['output_slots_list'][0]))
@@ -173,7 +171,9 @@ if __name__ == '__main__':
             if x.startswith('$expert$'):
                 raw_input = x.split("=")[1].strip()
         print('raw_input: ', raw_input, '\n')
+        num_tries += 1
         if len(res['true_output_text'])==len(res['output_slots_list'][0]):
+            num_successes += 1
             raw_generated = [v for _, v in res['output_slots_list'][0].items()]
             print('raw_generated: ', raw_generated)
             print('true_output: ', res['true_output_text'])
@@ -181,7 +181,7 @@ if __name__ == '__main__':
             diff, ratio = compute_diff(res['true_output_text'], raw_generated)
             exp_diff, exp_ratio = compute_diff([raw_input], [raw_generated[-1]])
         else:
-            print("Some slot is skipped in generation, it is a failure.")
+            # print("Some slot is skipped in generation, it is a failure.")
             rouges = [0] * len(res['true_output_text'])
             diff = [-1] * len(res['true_output_text'])
             ratio = [-1] * len(res['true_output_text'])
@@ -199,4 +199,8 @@ if __name__ == '__main__':
         angles.append(res['angle'])
         
     df = pd.DataFrame({'Input':inputs, 'Angle': angles, 'True_outputs':true_outputs, 'Outputs':outputs, 'Rouge':metrics_rouge, 'Diff_w_true':metrics_diff, 'Diff_w_input':diff_raw_exp, 'Sim_w_true_all':ratio_metrics_diff, 'Sim_w_true': [x[-1] for x in ratio_metrics_diff], 'Sim_w_input':ratio_raw_exp})
-    df.to_csv('eval_exc_EaSa_alt_input_format_'+str(args.chkpt)+'.csv', index=False)        
+    df.to_csv('../out/test_res.csv', index=False)  
+
+    print('Done writing to file')
+    percentage = num_successes * 100.0 // num_tries
+    print(f'Success rate: {percentage:.2f}')

@@ -5,7 +5,7 @@ import re
 import random
 import torch
 import math
-from transformers import T5Tokenizer, T5ForConditionalGeneration
+from transformers import T5Tokenizer, T5ForConditionalGeneration, AutoTokenizer, AutoModelForSeq2SeqLM
 import numpy as np
 import itertools
     
@@ -14,7 +14,11 @@ def load_model(model_name_or_path, tokenizer_path, cuda_devices=None, checkpoint
   #one_extra makes sure that the last layer gets added to the last gpu
   cuda_devices = cuda_devices or []
 
-  if model_name_or_path == "t5-large":
+  if model_name_or_path == 'google/flan-t5-base':
+    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_name_or_path, device_map="auto")
+
+  elif model_name_or_path == "t5-large":
     if checkpoint is None:
       tokenizer = T5Tokenizer.from_pretrained(tokenizer_path)
       model = T5ForConditionalGeneration.from_pretrained(model_name_or_path)

@@ -370,6 +370,9 @@ def available_slots(texts, alternate_format=True):
   """
   patterns = ["<rep>", "<elab-define>", "<elab>", "<elab-sentence>", "<del>", "<ins>"]
   annotation_dict = dict()
+  # print(texts)
+  # print('---------------')
+
   if len(texts) == 4:
     e, s, a, c = texts
     input_slots = set(["E", "C"])
