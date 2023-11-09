@@ -1,7 +1,6 @@
 # CTRL-SIMP
 
-This repo contains the Med-EASi (Medical dataset for Elaborative and Abstractive
-Simplification) dataset and models for controllable medical text simplification. 
+This repo contains the Med-EASi (Medical dataset for Elaborative and Abstractive Simplification) dataset and models for controllable medical text simplification.
 
 ## Overview
 MedEASi is a uniquely crowdsourced and finely annotated dataset for supervised simplification of short medical
@@ -26,6 +25,14 @@ Model arguments:
 * --shuffle: bool, default = True, shuffle training data to avoid the same examples in one batch
 
 The evaluation functions are in model.py.
+
+## Usage
+To run evaluation, run the following commands:
+```
+cd src
+python3 evaluation.py
+```
+Current model being tested is the `google/t5-flan-base` model.
 
 ## Dataset
 The dataset is available at https://huggingface.co/datasets/cbasu/Med-EASi
