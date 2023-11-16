@@ -77,10 +77,10 @@ def run_dev(student, teacher, dev_loader, optimizer, epoch):
 def train(student,teacher,train_loader, optimizer, dev_loader):
   student.train()
   teacher.eval()
-  train_loss = 0
   epoch = 20
 
   for i in tqdm(range(epoch), desc="Epoch"):
+    train_loss = 0
     for batch in tqdm(train_loader, desc="Iteration"):
         input_ids = batch['input_ids']
         attention_mask = batch['attention_mask']
