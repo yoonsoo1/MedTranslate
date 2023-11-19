@@ -13,6 +13,7 @@ from utils import GENERATOR_OPTIONS_DEFAULT
 import argparse
 import textwrap
 from rouge_score import rouge_scorer
+from evaluate import load
 import difflib
 
 def run_evaluation(eval_data, model_dict):
@@ -139,6 +140,7 @@ if __name__ == '__main__':
     model_path = './models/merged_outputs/exc_EaSa_alt_input_format/model_' + str(args.chkpt) + '.hf'
     tokenizer_path = 't5-small'
     model_dict = load_model(model_name_or_path=model_path, tokenizer_path = tokenizer_path, cuda_devices = [0])
+    sari = load("sari")
     
     crowdsourced_data = pd.read_csv("./Datasets/annotated_data/annotated_data_v2.csv")
     crowdsourced_data = crowdsourced_data.drop_duplicates( subset = ['Expert', 'Simple'], keep = 'last').reset_index(drop = True)
@@ -165,6 +167,8 @@ if __name__ == '__main__':
     ratio_metrics_diff = []
     diff_raw_exp = []
     ratio_raw_exp = []
+
+    #calling sari score function from hugging face (sources: inputs, predictions: outputs, references: true outputs)
     for res in all_res:
         print('\n\n')
         print(len(res['true_output_text']), len(res['output_slots_list'][0]))
@@ -173,6 +177,11 @@ if __name__ == '__main__':
             if x.startswith('$expert$'):
                 raw_input = x.split("=")[1].strip()
         print('raw_input: ', raw_input, '\n')
+        sources = [raw_input]
+        predictions = [v for _, v in res['output_slots_list'][0].items()]
+        references = [res['true_output_text']]
+        sari_score = sari.compute(sources=sources, predictions=predictions, references=references)
+        print("sari score: ", sari_score)
         if len(res['true_output_text'])==len(res['output_slots_list'][0]):
             raw_generated = [v for _, v in res['output_slots_list'][0].items()]
             print('raw_generated: ', raw_generated)
