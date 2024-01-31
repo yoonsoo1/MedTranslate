@@ -18,7 +18,9 @@ The teacher model utilizes Basu et al. dataset and model. We finetune T5-large w
 
 Using a novel Knowledge Distillation function, inspired from the Mini-LM paper, we use:
 
-<img src="https://latex.codecogs.com/gif.latex?\[L_{ENC} = \frac{1}{A^{S}_{h}|x|}\Sigma_{i=1}^{A^{S}_{h}}\Sigma_{t=1}^{|x|}D_{KL}(A^{T}_{E,a,t} || A^{S}_{E,a,t})\]/>
+```math
+L_{ENC} = \frac{1}{A^{S}_{h}|x|}\Sigma_{i=1}^{A^{S}_{h}}\Sigma_{t=1}^{|x|}D_{KL}(A^{T}_{E,a,t} || A^{S}_{E,a,t})
+```
 
 to minimize the total Loss. 
 
