@@ -30,7 +30,7 @@ L_{DEC} = \frac{1}{A^{S}_{h}|x|}\Sigma_{i=1}^{A^{S}_{h}}\Sigma_{t=1}^{|x|}D_{KL}
 L_{total} = \mathcal{L}_{ENC} + \mathcal{L}_{DEC}
 ```
 
-to minimize the total Loss. 
+to minimize the total loss, $L_{total}$. 
 
 You can train the student model by 
 ```
